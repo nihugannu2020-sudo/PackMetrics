@@ -32,7 +32,7 @@ def _find_field(text: str, patterns):
 def extract_ocr_data(raw_text: str = "") -> dict:
     text = _clean_text(raw_text or "")
     if not text:
-        text = "Wheat Flour 1kg ABC Foods Pvt Ltd MRP ₹45.00 Batch B1234 Manufactured by ABC Foods Pvt Ltd Ahmedabad, Gujarat"
+        return {}
 
     price = _find_field(text, [r"(?:MRP|Price|Rate|Amount)[:\s]+(₹?\s?\d+(?:,\d{3})*(?:\.\d+)?)", r"(₹\s?\d+(?:,\d{3})*(?:\.\d+)?)"])
     manufacturer = _find_field(text, [r"(?:Manufactured by|Mfd by|Manufacturer)[:\s]+([A-Za-z0-9 &.,()/-]+?)(?=\s+(?:Place of Manufacture|Manufactured at|Mfg at|MRP|Price|Net Qty|Batch|Manufacturing Date|$))", r"(?:Company)[:\s]+([A-Za-z0-9 &.,()/-]+?)(?=\s+(?:Place of Manufacture|MRP|Net Qty|Batch|$))"])
@@ -40,20 +40,8 @@ def extract_ocr_data(raw_text: str = "") -> dict:
     product = _find_field(text, [r"([A-Za-z0-9 &.-]+\s\d+(?:\.?\d+)?\s?(?:kg|g|l|ml|mg))", r"([A-Za-z0-9 &.-]+\s(?:Flour|Rice|Sugar|Juice|Salt|Tea|Coffee))"])
     batch = _find_field(text, [r"(?:Batch|Lot)[:\s]+([A-Za-z0-9/-]+)"])
     date = _find_field(text, [r"(?:Mfg Date|Manufacturing Date|Date of Manufacture|MFD)[:\s]+(\d{2}/\d{2}/\d{4})", r"(\d{2}/\d{2}/\d{4})"])
-    quantity = _find_field(text, [r"(?:Net Qty|Net Quantity|Qty|Quantity)[:\s]+([0-9]+\.?[0-9]*\s?(?:kg|g|l|ml|mg))"]) or "1 kg"
-
-    if not manufacturer:
-        manufacturer = "ABC Foods Pvt Ltd"
-    if not product:
-        product = "Wheat Flour"
-    if not price:
-        price = "₹45.00"
-    if not batch:
-        batch = "B1234"
-    if not place:
-        place = "Ahmedabad, Gujarat"
-    if not date:
-        date = "05/05/2025"
+    quantity = _find_field(text, [r"(?:Net Qty|Net Quantity|Qty|Quantity)[:\s]+([0-9]+\.?[0-9]*\s?(?:kg|g|l|ml|mg))"])
+    consumer_care = _find_field(text, [r"(?:Consumer Care|Customer Care|Care|Feedback)[:\s]+([A-Za-z0-9@., +-]+)"])
 
     return {
         "product_name": product,
@@ -63,7 +51,7 @@ def extract_ocr_data(raw_text: str = "") -> dict:
         "mrp": _normalize_price(price),
         "batch_no": batch,
         "manufacturing_date": date,
-        "consumer_care": "+91 98765 43210",
+        "consumer_care": consumer_care,
         "raw_text": text,
     }
 
@@ -85,9 +73,8 @@ def extract_ocr_from_image_bytes(image_bytes: bytes, filename: str = "upload") -
         processed = preprocess_image_for_ocr(image_bytes)
         text = pytesseract.image_to_string(processed, config='--psm 6')
         if not text.strip():
-            raise ValueError('No OCR text detected')
+            return {}
         return extract_ocr_data(text)
-    except Exception:
-        return extract_ocr_data(
-            f"Product: Wheat Flour\nManufactured by: ABC Foods Pvt Ltd\nPlace of Manufacture: Ahmedabad, Gujarat\nMRP: ₹45.00\nNet Qty: 1 kg\nBatch: B1234\nManufacturing Date: 05/05/2025"
-        )
+    except Exception as e:
+        print(f"OCR Error: {e}")
+        return {}

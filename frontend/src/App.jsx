@@ -351,13 +351,24 @@ function App() {
 
     switch (page) {
       case 'upload':
-        return <UploadPage onBack={() => setPage('dashboard')} onRunPrecheck={(payload, files) => { setOcrResult(payload?.ocr || ocrResult); setScanImages(files); setSubmission({ scanId: payload?.scan_id || 'SCN2045', status: 'Pending', ocr: payload?.ocr || ocrResult, images: files }); setPage('precheck'); }} />;
+        return <UploadPage onBack={() => setPage('dashboard')} onRunPrecheck={(payload, files) => { 
+          setOcrResult(payload?.ocr || ocrResult); 
+          setScanImages(files); 
+          setSubmission({ 
+            scanId: payload?.scan_id, 
+            status: 'Pending', 
+            ocr: payload?.ocr, 
+            compliance_report: payload?.compliance_report,
+            images: files 
+          }); 
+          setPage('precheck'); 
+        }} />;
       case 'precheck':
-        return <PreCheckPage ocrData={ocrResult} images={scanImages} onBack={() => setPage('upload')} onSubmit={() => setPage('dashboard')} />;
+        return <PreCheckPage ocrData={ocrResult} images={scanImages} complianceReport={submission?.compliance_report} onBack={() => setPage('upload')} onSubmit={() => setPage('dashboard')} />;
       case 'submissions':
-        return <SubmissionsPage />;
+        return <SubmissionsPage onOpenScan={(id) => { setSelectedScan(id); setPage('reviews'); }} />;
       case 'reviews':
-        return <ReviewPage submission={submission} scanId={selectedScan} checks={sampleScan.checks} overall={sampleScan.overall} onDecision={recordDecision} />;
+        return <ReviewPage scanId={selectedScan} onDecision={recordDecision} />;
       case 'rules':
         return <RulesPage />;
       case 'assistant':
@@ -597,14 +608,13 @@ function UploadPage({ onBack, onRunPrecheck }) {
   );
 }
 
-function PreCheckPage({ ocrData, images, onBack, onSubmit }) {
+function PreCheckPage({ ocrData, images, onBack, onSubmit, complianceReport }) {
   const previewUrls = useObjectUrls(images);
-  const checks = [
-    { label: 'Net Quantity Font Size', status: 'FAIL' },
-    { label: 'MRP Declaration', status: 'PASS' },
-    { label: 'Mandatory Declaration', status: 'FAIL' },
-    { label: 'Date Format', status: 'PASS' },
+  const checks = complianceReport?.checks || [
+    { check: 'Processing...', status: 'PENDING' }
   ];
+
+  const overall = complianceReport?.overall_result || 'UNKNOWN';
 
   return (
     <div className="content-stack narrow-stack">
@@ -635,12 +645,15 @@ function PreCheckPage({ ocrData, images, onBack, onSubmit }) {
         <div className="result-panel">
           <div className="result-header">
             <p className="eyebrow">Overall Result</p>
-            <h2 className="result-danger">NON-COMPLIANT</h2>
+            <h2 className={overall === 'COMPLIANT' ? 'result-success' : 'result-danger'}>{overall}</h2>
           </div>
           <div className="issue-list">
-            {checks.map((item) => (
-              <div key={item.label} className="issue-row">
-                <span>{item.label}</span>
+            {checks.map((item, idx) => (
+              <div key={idx} className="issue-row">
+                <div style={{display: 'flex', flexDirection: 'column'}}>
+                  <span>{item.check}</span>
+                  <small style={{color: 'var(--muted)', fontSize: '0.75rem'}}>{item.message}</small>
+                </div>
                 <span className={statusClass(item.status)}>{item.status}</span>
               </div>
             ))}
@@ -649,13 +662,14 @@ function PreCheckPage({ ocrData, images, onBack, onSubmit }) {
           <div className="data-block">
             <h4>Detected Information</h4>
             <div className="metadata-grid">
-              <div><span>Product</span><strong>{ocrData.product_name || 'Wheat Flour'}</strong></div>
-              <div><span>Net Quantity</span><strong>{ocrData.net_quantity || '1 kg'}</strong></div>
-              <div><span>MRP</span><strong>{ocrData.mrp || '₹45.00'}</strong></div>
-              <div><span>Batch No</span><strong>{ocrData.batch_no || 'B1234'}</strong></div>
-              <div><span>Manufacturer</span><strong>{ocrData.manufacturer || 'ABC Foods Pvt Ltd'}</strong></div>
-              <div><span>Place of Manufacture</span><strong>{ocrData.place_of_manufacture || 'Ahmedabad, Gujarat'}</strong></div>
-              <div><span>Manufacturing Date</span><strong>{ocrData.manufacturing_date || '05/05/2025'}</strong></div>
+              <div><span>Product</span><strong>{ocrData.product_name || 'Not Detected'}</strong></div>
+              <div><span>Net Quantity</span><strong>{ocrData.net_quantity || 'Not Detected'}</strong></div>
+              <div><span>MRP</span><strong>{ocrData.mrp || 'Not Detected'}</strong></div>
+              <div><span>Batch No</span><strong>{ocrData.batch_no || 'Not Detected'}</strong></div>
+              <div><span>Manufacturer</span><strong>{ocrData.manufacturer || 'Not Detected'}</strong></div>
+              <div><span>Place of Manufacture</span><strong>{ocrData.place_of_manufacture || 'Not Detected'}</strong></div>
+              <div><span>Manufacturing Date</span><strong>{ocrData.manufacturing_date || 'Not Detected'}</strong></div>
+              <div><span>Consumer Care</span><strong>{ocrData.consumer_care || 'Not Detected'}</strong></div>
             </div>
           </div>
 
@@ -669,12 +683,15 @@ function PreCheckPage({ ocrData, images, onBack, onSubmit }) {
   );
 }
 
-function SubmissionsPage() {
-  const rows = [
-    { id: 'SCN2001', product: 'Wheat Flour 1kg', date: '24/05/2025', status: 'Pending', official: 'Awaiting Review' },
-    { id: 'SCN2002', product: 'Basmati Rice 5kg', date: '23/05/2025', status: 'Approved', official: 'Approved' },
-    { id: 'SCN2003', product: 'Sugar 1kg', date: '22/05/2025', status: 'Rejected', official: 'Rejected' },
-  ];
+function SubmissionsPage({ onOpenScan }) {
+  const [rows, setRows] = useState([]);
+  
+  useEffect(() => {
+    fetch('http://localhost:8000/api/scans')
+      .then(res => res.json())
+      .then(data => setRows(data.items || []))
+      .catch(err => console.error(err));
+  }, []);
 
   return (
     <div className="content-stack">
@@ -684,7 +701,7 @@ function SubmissionsPage() {
           <h1>My Submissions</h1>
         </div>
       </div>
-      <div className="panel">
+      <div className="panel" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
         <div className="panel-header inline-header">
           <div className="filter-row">
             <button className="filter-chip active">All</button>
@@ -693,43 +710,51 @@ function SubmissionsPage() {
             <button className="filter-chip">Rejected</button>
           </div>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Scan ID</th>
-                <th>Product</th>
-                <th>Submission Date</th>
-                <th>Status</th>
-                <th>Official Decision</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.id}</td>
-                  <td>{row.product}</td>
-                  <td>{row.date}</td>
-                  <td><span className={statusClass(row.status)}>{row.status}</span></td>
-                  <td>{row.official}</td>
-                  <td><button className="table-link">Open</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="masonry-grid">
+            {rows.map((row) => (
+              <div className="submission-card" key={row.id}>
+                {row.images && row.images.length > 0 && (
+                  <div className="card-image-box">
+                    <img src={`http://localhost:8000${row.images[0]}`} alt={row.product} />
+                  </div>
+                )}
+                <div className="card-content">
+                  <h3>{row.product}</h3>
+                  <p className="card-meta">ID: {row.id} &bull; {row.submitted_on}</p>
+                  <p className="card-manufacturer">{row.manufacturer}</p>
+                  <div className="card-status-row">
+                    <span className={statusClass(row.status)}>{row.status}</span>
+                    <button className="table-link" onClick={() => onOpenScan && onOpenScan(row.id)}>Open</button>
+                  </div>
+                </div>
+              </div>
+            ))}
         </div>
       </div>
     </div>
   );
 }
 
-function ReviewPage({ submission, scanId, checks, overall, onDecision }) {
+function ReviewPage({ scanId, onDecision }) {
   const [remarks, setRemarks] = useState('');
-  const images = submission?.images || [];
-  const previewUrls = useObjectUrls(images);
-  const ocrData = submission?.ocr || {};
-  const currentStatus = submission?.status || 'Pending';
+  const [scan, setScan] = useState(null);
+
+  useEffect(() => {
+    fetch(`http://localhost:8000/api/scans/${scanId}`)
+      .then(res => res.json())
+      .then(data => setScan(data))
+      .catch(err => console.error(err));
+  }, [scanId]);
+
+  if (!scan) return <div style={{padding: 40}}>Loading scan details...</div>;
+
+  const images = scan.images || [];
+  const previewUrls = images.map(img => typeof img === 'string' ? `http://localhost:8000${img}` : img);
+  const ocrData = scan.ocr_data || {};
+  const report = scan.compliance_report || {};
+  const checks = report.checks || [];
+  const currentStatus = scan.status || 'Pending';
+  const overall = report.overall_result || 'UNKNOWN';
 
   return (
     <div className="content-stack wide-stack">
@@ -742,30 +767,31 @@ function ReviewPage({ submission, scanId, checks, overall, onDecision }) {
 
       <div className="review-grid">
         <div className="panel image-review">
-          {images.length > 0 ? <div className="official-image-grid">{images.map((file, index) => <img key={`${file.name}-${index}`} src={previewUrls[index]} alt={`Submitted package side ${index + 1}`} />)}</div> : <div className="scan-image tall-image" />}
-          <div className="review-caption">{images.length || 3} package images submitted for review</div>
+          {images.length > 0 ? <div className="official-image-grid">{images.map((url, index) => <img key={index} src={previewUrls[index]} alt={`Package side ${index + 1}`} />)}</div> : <div className="scan-image tall-image" />}
+          <div className="review-caption">{images.length || 0} package images submitted for review</div>
         </div>
 
         <div className="panel review-right">
           <div className="panel-header"><h3>Extracted Information (AI)</h3><span className={statusClass(currentStatus)}>{currentStatus}</span></div>
           <div className="metadata-grid compact-grid">
-            <div><span>Product Name</span><strong>{ocrData.product_name || 'Wheat Flour'}</strong></div>
-            <div><span>Net Quantity</span><strong>{ocrData.net_quantity || '1 kg'}</strong></div>
-            <div><span>MRP</span><strong>{ocrData.mrp || '₹45.00'}</strong></div>
-            <div><span>Batch No.</span><strong>{ocrData.batch_no || 'B1234'}</strong></div>
-            <div><span>Manufacturing Date</span><strong>{ocrData.manufacturing_date || '05/05/2025'}</strong></div>
-            <div><span>Manufacturer</span><strong>{ocrData.manufacturer || 'ABC Foods Pvt Ltd'}</strong></div>
-            <div><span>Manufactured At</span><strong>{ocrData.place_of_manufacture || 'Ahmedabad, Gujarat'}</strong></div>
+            <div><span>Product Name</span><strong>{ocrData.product_name || 'Not Detected'}</strong></div>
+            <div><span>Net Quantity</span><strong>{ocrData.net_quantity || 'Not Detected'}</strong></div>
+            <div><span>MRP</span><strong>{ocrData.mrp || 'Not Detected'}</strong></div>
+            <div><span>Batch No.</span><strong>{ocrData.batch_no || 'Not Detected'}</strong></div>
+            <div><span>Manufacturing Date</span><strong>{ocrData.manufacturing_date || 'Not Detected'}</strong></div>
+            <div><span>Manufacturer</span><strong>{ocrData.manufacturer || 'Not Detected'}</strong></div>
+            <div><span>Manufactured At</span><strong>{ocrData.place_of_manufacture || 'Not Detected'}</strong></div>
+            <div><span>Consumer Care</span><strong>{ocrData.consumer_care || 'Not Detected'}</strong></div>
           </div>
 
           <div className="rule-checks">
-            {checks.map((item) => (
-              <div key={item.label} className="check-row">
-                <div className="check-left">
-                  <span>{item.label}</span>
-                  <small>{item.rule}</small>
+            {checks.map((item, idx) => (
+              <div key={idx} className="check-row">
+                <div className="check-left" style={{flex: 1}}>
+                  <span>{item.check}</span>
+                  <small style={{color: 'var(--muted)', display: 'block'}}>{item.message}</small>
                 </div>
-                <div className="check-right">
+                <div className="check-right" style={{marginLeft: 16}}>
                   <span className={statusClass(item.status)}>{item.status}</span>
                 </div>
               </div>
@@ -778,12 +804,13 @@ function ReviewPage({ submission, scanId, checks, overall, onDecision }) {
         <div className="decision-header">
           <div>
             <p className="eyebrow">AI-generated recommendation</p>
-            <h3>Overall Result: {overall}</h3>
+            <h3 className={overall === 'COMPLIANT' ? 'result-success' : 'result-danger'}>Overall Result: {overall}</h3>
           </div>
-          <span className="status danger">AI suggests rejection</span>
+          {overall !== 'COMPLIANT' && <span className="status danger">AI suggests rejection</span>}
+          {overall === 'COMPLIANT' && <span className="status success">AI suggests approval</span>}
         </div>
 
-        <div className="ai-guidance"><strong>AI decision support</strong><p>Multiple declarations appear missing or unclear. Verify the MRP, net quantity, manufacturer address, and mandatory declarations across all submitted sides before deciding.</p><small>AI guidance supports official review and is not a legal determination.</small></div>
+        <div className="ai-guidance"><strong>AI decision support</strong><p>Review the compliance report and visual evidence. Verify the declarations before deciding.</p><small>AI guidance supports official review and is not a legal determination.</small></div>
 
         <div className="decision-actions">
           <button className="action-button primary" onClick={() => onDecision('Approved', remarks)}>APPROVE</button>

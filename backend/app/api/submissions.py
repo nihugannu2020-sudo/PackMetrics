@@ -1,5 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
+import json
+
+from app.core.database import get_all_scans, update_scan_status
 
 router = APIRouter(prefix='/submissions', tags=['submissions'])
 
@@ -12,16 +15,25 @@ class SubmissionDecision(BaseModel):
 
 @router.get('')
 def list_submissions():
+    scans = get_all_scans()
     return {
         'items': [
-            {'scan_id': 'SCN2001', 'product': 'Wheat Flour 1kg', 'status': 'Pending', 'official_decision': 'Awaiting review'},
-            {'scan_id': 'SCN2002', 'product': 'Basmati Rice 5kg', 'status': 'Approved', 'official_decision': 'Approved'},
+            {
+                'scan_id': s['id'],
+                'product': s['product_name'],
+                'status': s['status'],
+                'official_decision': s['status'],
+                'submitted_on': s['submitted_on'],
+                'manufacturer': s['manufacturer']
+            }
+            for s in scans
         ]
     }
 
 
 @router.post('/decision')
 def create_decision(payload: SubmissionDecision):
+    update_scan_status(payload.scan_id, payload.decision)
     return {
         'ok': True,
         'scan_id': payload.scan_id,
