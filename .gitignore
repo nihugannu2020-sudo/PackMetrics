@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Frontend
+node_modules/
+dist/
+.vite/
+
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local test artifacts
+*.log
+coverage/
