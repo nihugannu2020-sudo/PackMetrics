@@ -172,7 +172,7 @@ function App() {
   const recordDecision = async (decision, remarks) => {
     const scanId = submission?.scanId || selectedScan;
     try {
-      const response = await fetch('http://localhost:8000/api/submissions/decision', {
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/submissions/decision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ scan_id: scanId, decision, remarks }),
@@ -547,7 +547,7 @@ function UploadPage({ onBack, onRunPrecheck }) {
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
-      const response = await fetch('http://localhost:8000/api/scans/upload', {
+      const response = await fetch((import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/scans/upload', {
         method: 'POST',
         body: formData,
       });
@@ -687,7 +687,7 @@ function SubmissionsPage({ onOpenScan }) {
   const [rows, setRows] = useState([]);
   
   useEffect(() => {
-    fetch('http://localhost:8000/api/scans')
+    fetch((import.meta.env.VITE_API_URL || 'http://localhost:8000') + '/api/scans')
       .then(res => res.json())
       .then(data => setRows(data.items || []))
       .catch(err => console.error(err));
@@ -715,7 +715,7 @@ function SubmissionsPage({ onOpenScan }) {
               <div className="submission-card" key={row.id}>
                 {row.images && row.images.length > 0 && (
                   <div className="card-image-box">
-                    <img src={`http://localhost:8000${row.images[0]}`} alt={row.product} />
+                    <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${row.images[0]}`} alt={row.product} />
                   </div>
                 )}
                 <div className="card-content">
@@ -740,7 +740,7 @@ function ReviewPage({ scanId, onDecision }) {
   const [scan, setScan] = useState(null);
 
   useEffect(() => {
-    fetch(`http://localhost:8000/api/scans/${scanId}`)
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/scans/${scanId}`)
       .then(res => res.json())
       .then(data => setScan(data))
       .catch(err => console.error(err));
@@ -749,7 +749,7 @@ function ReviewPage({ scanId, onDecision }) {
   if (!scan) return <div style={{padding: 40}}>Loading scan details...</div>;
 
   const images = scan.images || [];
-  const previewUrls = images.map(img => typeof img === 'string' ? `http://localhost:8000${img}` : img);
+  const previewUrls = images.map(img => typeof img === 'string' ? `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}${img}` : img);
   const ocrData = scan.ocr_data || {};
   const report = scan.compliance_report || {};
   const checks = report.checks || [];
