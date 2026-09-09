@@ -23,3 +23,7 @@ dist/
 # Local test artifacts
 *.log
 coverage/
+
+# Data and uploads
+database.db
+uploads/

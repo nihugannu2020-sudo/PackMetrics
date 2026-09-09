@@ -2,8 +2,10 @@ import sqlite3
 import json
 from pathlib import Path
 import datetime
+import os
 
-DB_PATH = Path("database.db")
+DATA_DIR = os.getenv("DATA_DIR", ".")
+DB_PATH = Path(DATA_DIR) / "database.db"
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)

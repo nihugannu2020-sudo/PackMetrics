@@ -11,6 +11,9 @@ from app.core.database import save_scan, get_scan, get_all_scans, update_scan_st
 
 router = APIRouter(prefix='/scans', tags=['scans'])
 
+DATA_DIR = os.getenv("DATA_DIR", ".")
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+
 @router.post('/upload')
 async def upload_scan(files: List[UploadFile] = File(...), product_name: Optional[str] = None):
     if not files:
@@ -30,7 +33,7 @@ async def upload_scan(files: List[UploadFile] = File(...), product_name: Optiona
         # Save image to uploads/
         ext = file.filename.split('.')[-1]
         new_filename = f"{scan_id}_{uuid.uuid4().hex[:4]}.{ext}"
-        filepath = os.path.join("uploads", new_filename)
+        filepath = os.path.join(UPLOAD_DIR, new_filename)
         with open(filepath, "wb") as f:
             f.write(image_bytes)
         saved_images.append(f"/uploads/{new_filename}")

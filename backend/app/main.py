@@ -1,15 +1,17 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import auth, scans, submissions, reports, rules, users, chatbot, analytics
 from app.core.config import settings
 
 from fastapi.staticfiles import StaticFiles
-import os
 
 app = FastAPI(title='Metrology Compliance Platform', version='1.0.0')
 
-os.makedirs("uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+DATA_DIR = os.getenv("DATA_DIR", ".")
+UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
